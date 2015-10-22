@@ -1,6 +1,6 @@
 # RabbitMQ PHP Interface
 
-PHP class to use RabbitMQ, a queuing manager !
+PHP classes to use RabbitMQ, a queuing manager !
 
 [RabbitMQ](https://www.rabbitmq.com/features.html) is an open source message broker software that implements the Advanced Message Queuing Protocol (AMQP). You can install it freely by following the instructions on the [official website](https://www.rabbitmq.com/download.html). <br />
 [Tutorials](https://www.rabbitmq.com/getstarted.html) in several languages are available. But if I decided to share this code is because the tutorials code did not work for me, and apparently for many other people... I took the opportunity to add a few more safety tests and some good uses as the management of the load server and the limitation of the workers.
