@@ -23,9 +23,9 @@ define('__MAX_PROCESS_BY_CPU__', 8);
 define('__MAX_OPERATION_BY_CONSUMER__', 10000);
 
 /**
- * Chemin vers le worker.
+ * Nombre maximal de minutes que peut survivre un worker avant de se détruire et de rappeler un autre worker.
  */
-define('__WORKER_PATH__', '/your/path/worker.php');
+define('__MAX_MINUTE_BY_CONSUMER__', 30);
 
 /**
  * @class RabbitMQConsumer
@@ -90,6 +90,12 @@ class RabbitMQConsumer {
      * @var AMQPQueue   Queue. 
      */
     var $queue = null;
+    
+    /**
+     * Chemin d'accès jusqu'au worker.
+     * @var string  $workerPath 
+     */
+    private $workerPath = '';
 
     /*     * *****************************************************************************************
      *                                      CONSTRUCTEUR
@@ -144,6 +150,14 @@ class RabbitMQConsumer {
      */
     public function setQueueName($name) {
         $this->queueName = $name;
+    }
+    
+    /**
+     * Affecte un chemin d'accès au worker.
+     * @param   string  $workerPath
+     */
+    public function setWorkerPath($workerPath) {
+        $this->workerPath = $workerPath;
     }
 
     /*     * *****************************************************************************************
@@ -222,7 +236,7 @@ class RabbitMQConsumer {
             }
             
             // On vérifie qu'il n'y est pas déjà trop de consumers en cours.
-            $consumerNumber = (int) shell_exec('ps x | grep ' . __WORKER_PATH__ . ' | grep -v grep | wc -l');
+            $consumerNumber = (int) shell_exec('ps x | grep ' . $this->workerPath . ' | grep -v grep | wc -l');
             if ($consumerNumber > __MAX_PROCESS_BY_CPU__ * $cpuNumber) {
                 echo 'Il y a trop de consumers(' . $consumerNumber . ') compte tenu du nombre de CPUs(' . $cpuNumber . ')' . '<br/ >';
                 // Gérer l'exception ici !
@@ -286,7 +300,7 @@ class RabbitMQConsumer {
         // Déconnexion.
         $this->disconnect();
         // Le consumer se relance lui même en tâche de fond pour ne pas attendre le cron.
-        shell_exec('php ' . __WORKER_PATH__ . ' >> /dev/null 2>&1 &');
+        shell_exec('php ' . $this->workerPath . ' >> /dev/null 2>&1 &');
     }
 
     /**
@@ -302,7 +316,7 @@ class RabbitMQConsumer {
         // Déconnexion.
         $this->disconnect();
         // Le consumer se relance lui même en tâche de fond pour ne pas attendre le cron.
-        shell_exec('php ' . __WORKER_PATH__ . ' >> /dev/null 2>&1 &');
+        shell_exec('php ' . $this->workerPath . ' >> /dev/null 2>&1 &');
     }
 
     /**
@@ -324,12 +338,24 @@ class RabbitMQConsumer {
 
     /**
      * Retourne si le consumer peut encore exécuter des tâches ou non.
+     * @param   int         $time   Temps.
      * @return  boolean     <b>TRUE</b> si le consumer peut encore effectuer des tâches, <b>FALSE</b> sinon.
      */
-    public function verifyLimit() {
-        if (++$this->operationsNumber >= __MAX_OPERATION_BY_CONSUMER__) {
-            return false;
+    public function verifyLimit($time = null) {
+        $test = true;
+        // Si un temps d'execution est passé en paramètre.
+        if ($time != null) {
+            // On retourne false si le worker s'est exécuté depuis plus de X minutes.
+            if ((microtime(true) - strtotime($time)) >= (__MAX_MINUTE_BY_CONSUMER__ * 60)) {
+                $test = false;
+            }
+        } else {
+            // On retourne false si le worker a effectué plus de X opérations.
+            if (++$this->operationsNumber >= __MAX_OPERATION_BY_CONSUMER__) {
+                $test = false;
+            }
         }
+        return $test;
     }
 
     /**
